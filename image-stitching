@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+
+@author: fs
+"""
+
+import argparse
+import cv2
+import numpy as np
+
+ratio = 0.75
+reprojThresh =4.0
+def get_the_kps_and_features(image):
+  gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+  descriptor = cv2.xfeatures2d.SIFT_create()
+  raw_kps,features = descriptor.detectAndCompute(gray, None)
+  
+  return raw_kps, features
+  
+
+def match_keypoints(features1, features2):
+  bf = cv2.BFMatcher()
+  matches = bf.knnMatch(features1, features2, k = 2)
+  return matches
+
+def find_H(raw_kps1, raw_kps2, raw_matches):
+  '''
+  matches 是得到与第一幅图某特征点最接近的两个特征
+  '''
+  kps1 = np.float32([kp.pt for kp in raw_kps1])
+  kps2 = np.float32([kp.pt for kp in raw_kps2])
+  
+  good_matches = []
+  for m0,m1 in raw_matches:
+    if m0.distance <m1.distance * ratio:
+      good_matches.append((m0.trainIdx,m0.queryIdx))
+      
+  if len(good_matches) > 4:
+    pts1 = np.float32([kps1[i] for (_,i) in good_matches])
+    pts2 = np.float32([kps2[i] for (i,_) in good_matches])
+    H, status = cv2.findHomography(pts2, pts1, cv2.RANSAC,
+                                   reprojThresh)
+    return good_matches, H, status
+  return None
+
+def stitch(src, des, good_matches, H, status):
+  warp = cv2.warpPerspective(src, H, (des.shape[1] + src.shape[1],
+                             src.shape[0]))
+  warp[0:des.shape[0],0:des.shape[1]] = des
+  
+  return warp
+
+
+def drew_matches(img1, raw_kps1, img2, raw_kps2, raw_matches):
+  goods = []
+  for m,n in raw_matches:
+    if m.distance <0.75 * n.distance:
+      goods.append([m])
+  result = cv2.drawMatchesKnn(img1,raw_kps1, img2, raw_kps2,
+                              goods[:20], None, flags = 2)
+  
+  return result
+  
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--left_image', default = 's1.jpg', 
+                    help = 'path to the left image')
+
+parser.add_argument('--right_image', default = 's2.jpg',
+                    help = 'path to the right image')
+
+args = vars(parser.parse_args())
+
+left = cv2.imread(args['left_image'])
+right = cv2.imread(args['right_image'])
+
+raw_kps1, features1 = get_the_kps_and_features(left)
+raw_kps2, features2 = get_the_kps_and_features(right)
+
+raw_matches = match_keypoints(features1, features2)
+result = drew_matches(left, raw_kps1, right, raw_kps2, raw_matches)
+
+good_matches, H, status = find_H(raw_kps1, raw_kps2, raw_matches)
+
+warp = stitch(right, left, good_matches, H, status)
+
+
+
+cv2.imshow('matches',result)
+cv2.imshow('stitch',warp)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+cv2.waitKey(1)
+cv2.waitKey(1)
+cv2.waitKey(1)
+cv2.waitKey(1)
