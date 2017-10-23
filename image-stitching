@@ -4,7 +4,6 @@
 
 @author: fs
 """
-
 import argparse
 import cv2
 import numpy as np
@@ -34,11 +33,11 @@ def find_H(raw_kps1, raw_kps2, raw_matches):
   good_matches = []
   for m0,m1 in raw_matches:
     if m0.distance <m1.distance * ratio:
-      good_matches.append((m0.trainIdx,m0.queryIdx))
+      good_matches.append((m0.queryIdx,m0.trainIdx))
       
   if len(good_matches) > 4:
-    pts1 = np.float32([kps1[i] for (_,i) in good_matches])
-    pts2 = np.float32([kps2[i] for (i,_) in good_matches])
+    pts1 = np.float32([kps1[i] for (i,_) in good_matches])
+    pts2 = np.float32([kps2[i] for (_,i) in good_matches])
     H, status = cv2.findHomography(pts2, pts1, cv2.RANSAC,
                                    reprojThresh)
     return good_matches, H, status
@@ -46,7 +45,7 @@ def find_H(raw_kps1, raw_kps2, raw_matches):
 
 def stitch(src, des, good_matches, H, status):
   warp = cv2.warpPerspective(src, H, (des.shape[1] + src.shape[1],
-                             src.shape[0]))
+                             des.shape[0] + src.shape[0]))
   warp[0:des.shape[0],0:des.shape[1]] = des
   
   return warp
@@ -83,12 +82,16 @@ result = drew_matches(left, raw_kps1, right, raw_kps2, raw_matches)
 
 good_matches, H, status = find_H(raw_kps1, raw_kps2, raw_matches)
 
-warp = stitch(right, left, good_matches, H, status)
+warp1 = stitch(right, left, good_matches, H, status)
 
+rows, cols = np.where(warp1[:,:,0] !=0)
 
+min_row, max_row = min(rows), max(rows) +1
+min_col, max_col = min(cols), max(cols) +1
+finetune = warp1[min_row:max_row,min_col:max_col,:]
 
 cv2.imshow('matches',result)
-cv2.imshow('stitch',warp)
+cv2.imshow('stitch',finetune)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 cv2.waitKey(1)
