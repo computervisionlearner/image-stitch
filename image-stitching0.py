@@ -80,11 +80,11 @@ def drew_matches(img1, raw_kps1, img2, raw_kps2, goods ,status):
   '''
   draw_params = dict(
   singlePointColor = None,
-  matchesMask = status.flatten().tolist(),       # draw only inliers dots
+  matchesMask = status.flatten().tolist()[:100],       # draw only inliers dots
   flags = 2)
   
   result = cv2.drawMatches(img1,raw_kps1,
-                           img2, raw_kps2, goods, None,**draw_params)
+                           img2, raw_kps2, goods[:100], None,**draw_params)
 
 #  result = cv2.drawMatches(img1,raw_kps1,
 #                           img2,raw_kps2,goods[:100],None,**draw_params)
